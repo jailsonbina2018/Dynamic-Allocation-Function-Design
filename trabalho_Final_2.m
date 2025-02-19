@@ -78,18 +78,13 @@ L_c = [zeros(n_p,n_c); eye(n_c); zeros(n_f,n_c)];
 L = [ L_c, L_f];
 
 P_ = sdpvar(n, n, 'symmetric');
-J0 = sdpvar(n_p + n_c, n_p + n_c);
-Jf = sdpvar(n_f, n);
-Kf_ = sdpvar(n_f, n_f);
-Ke = sdpvar(n_c + n_f, m_a);
-G_ = sdpvar(m_a, n);
+P0 = sdpvar(n, n, 'symmetric');
+J_ = sdpvar(n, n, 'symmetric');
 S = sdpvar(m_a, m_a, 'diagonal');
 
-P0 = sdpvar(n, n, 'symmetric');
-
-J_ = [null(C_) * J0', Jf'];
-
-%J_ = sdpvar(n, n, 'symmetric');
+G_ = sdpvar(m_a, n);
+Kf_ = sdpvar(n_f, n_f);
+Ke = sdpvar(m_a, m_a);
 
 Z = [zeros(n_p + n_c,n_p + n_c), zeros(n_p + n_c,n_f); zeros(n_f,n_p + n_c), Kf_];
 
@@ -103,7 +98,7 @@ I = eye(8);
 
 Psi_12 = P_ + A * J_' + Z - J_;
 He = A * J_' + Z;
-Psi_22 = (He + He');
+Psi_22 = 0.5 * (He + He');
 
 Psi_13 = B * S + L * Ke;
 Psi_23 = Psi_13 - G_' - J_ * C';
@@ -124,13 +119,13 @@ u_ = 50e-3 * ones(m_a, 1);
 
 % Restrições
 constraints = [];
-constraints = [constraints, Psi_w <= - delta * eye(size(Psi_w))];
+constraints = [constraints, Psi_w <= -delta * eye(size(Psi_w))];
 constraints = [constraints, P0 <= lambda * eye(size(P0))];
-constraints = [constraints, sigma - mu >= 0];
-constraints = [constraints, [P0, eye(10); eye(10), J_ + J_' - P_] >= zeros(size([P0, eye(10); eye(10), J_ - J_' - P_]))];
+constraints = [constraints, sigma - mu >= delta];
+constraints = [constraints, [P0, eye(10); eye(10), J_ - J_' - P_] >= delta * eye(size([P0, eye(10); eye(10), J_ - J_' - P_]))];
 
 for i = 1:m_a
-    constraints = [constraints, [P_, G_(i,:)'; G_(i,:), mu * (u_(i)^2)] >= zeros(size([P_, G_(i,:)'; G_(i,:), mu * (u_(i)^2)]))];
+    constraints = [constraints, [P_, G_(i,:)'; G_(i,:), mu * (u_(i)^2)] >= delta * eye(size([P_, G_(i,:)'; G_(i,:), mu * (u_(i)^2)]))];
 end
 
 % Função objetivo
@@ -149,6 +144,8 @@ if sol.problem == 0
     disp(value(objective));
     disp('Variáveis de decisão:');
     disp('P_:'); disp(value(P_));
+    disp('gamma:'); disp(value(gamma));
+    disp('mu:'); disp(value(mu));
 else
     disp('Erro na solução do problema:');
     disp(sol.info);

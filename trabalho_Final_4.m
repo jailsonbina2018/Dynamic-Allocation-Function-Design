@@ -68,14 +68,18 @@ B_ = [B_p; zeros(8,2)];
 M = Mn;
 B = B_ * M;
 
-C = [Mps_inv * D_c * C_p, Mps_inv * C_c, N];
+%C = [Mps_inv * D_c * C_p, Mps_inv * C_c, N];
+C = [Mps_inv * D_c * C_p, Mps_inv * C_c, zeros(m_a, n_f)]; % Garanta 8x10
+
 C_ = N' * W * C;
 Bw_ = [Bw; 0; 0];
 L_f = [zeros(n_p,n_f); zeros(n_c,n_f); eye(n_f)];
 
 L_c = [zeros(n_p,n_c); eye(n_c); zeros(n_f,n_c)];
 
-L = [ L_c, L_f];
+%L = [ L_c, L_f];
+L = [zeros(n_p, m_a); eye(m_a); zeros(n_f, m_a)]; % n = 10, m_a = 8
+
 
 P_ = sdpvar(n, n, 'symmetric');
 J0 = sdpvar(n_p + n_c, n_p + n_c);
@@ -97,13 +101,13 @@ lambda = sdpvar(1, 1);
 gamma = sdpvar(1, 1);
 mu = sdpvar(1, 1);
 
-delta = 1e-1;
+delta = 1e-6;
 
 I = eye(8);
 
 Psi_12 = P_ + A * J_' + Z - J_;
 He = A * J_' + Z;
-Psi_22 = (He + He');
+Psi_22 = 0.5 * (He + He');
 
 Psi_13 = B * S + L * Ke;
 Psi_23 = Psi_13 - G_' - J_ * C';
@@ -115,23 +119,19 @@ Psi_c = [-2 * S, S * W^0.5; (S * W^0.5)', -gamma * I];
 
 Psi = [Psi_a, Psi_b; Psi_b', Psi_c];
 
-Psi_w = [Psi, [Bw_; Bw_; zeros(14,1); zeros(14,1)];
-        [Bw_', Bw_', zeros(1,14), zeros(1,14)], -R];
+% Psi_w = [Psi, [Bw_; Bw_; zeros(14,1); zeros(14,1)];
+%         [Bw_', Bw_', zeros(1,14), zeros(1,14)], -R];
+
+Bw_extended = [Bw_; zeros(n - n_p - n_c, 1)]; % n = 10
+Psi_w = [Psi, Bw_extended; 
+         Bw_extended', -R];
 
 % Definir u_bar como um vetor 8x1 (50 mN para cada atuador)
 
 u_ = 50e-3 * ones(m_a, 1);
 
 % Restrições
-constraints = [];
-constraints = [constraints, Psi_w <= - delta * eye(size(Psi_w))];
-constraints = [constraints, P0 <= lambda * eye(size(P0))];
-constraints = [constraints, sigma - mu >= 0];
-constraints = [constraints, [P0, eye(10); eye(10), J_ + J_' - P_] >= zeros(size([P0, eye(10); eye(10), J_ - J_' - P_]))];
 
-for i = 1:m_a
-    constraints = [constraints, [P_, G_(i,:)'; G_(i,:), mu * (u_(i)^2)] >= zeros(size([P_, G_(i,:)'; G_(i,:), mu * (u_(i)^2)]))];
-end
 
 % Função objetivo
 objective = rho1 * lambda + rho2 * gamma + rho3 * mu;
@@ -143,6 +143,17 @@ options = sdpsettings('solver', 'sedumi', 'verbose', 2, 'debug', 1, 'cachesolver
 sol = optimize(constraints, objective, options);
 
 % Resultados
+% Restrições Corrigidas
+constraints = [];
+constraints = [constraints, Psi_w <= -delta * eye(size(Psi_w))];
+constraints = [constraints, P0 <= lambda * eye(size(P0))];
+constraints = [constraints, sigma - mu >= delta];
+constraints = [constraints, [J_ + J_' - P_, eye(n); eye(n), P0] >= delta * eye(2*n)]; % Lyapunov
+
+for i = 1:m_a
+    constraints = [constraints, [mu * u_(i)^2, G_(i,:); G_(i,:)', P_] >= delta * eye(n+1)];
+end
+
 if sol.problem == 0
     disp('Problema resolvido com sucesso.');
     disp('Solução ótima:');
@@ -154,8 +165,3 @@ else
     disp(sol.info);
     disp('Verifique as restrições ou inicializações.');
 end
-
-
-
-
-
