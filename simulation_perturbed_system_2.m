@@ -1,4 +1,5 @@
-clc, clear;
+clear;
+clc; 
 
 % Dimensões dos sistemas
 n_p = 2;
@@ -109,8 +110,6 @@ w(t >= 0 & t <= 36) = 0.16667;
 u_bar = 0.05; % Limite superior simétrico (50 mN)
 
 % Função de saturação baseada em sign
-%sat = @(x) u_bar * tanh(x / u_bar);
-
 sat = @(x) sign(x) .* min(abs(x), u_bar);
 
 % Atualizando a função phi
@@ -123,6 +122,7 @@ y_pd_outputs = zeros(size(C_p, 1), length(t));
 y_ps_outputs = zeros(size(C_p, 1), length(t));
 
 y_c_outputs = zeros(size(C_c, 1), length(t));
+
 y_fd_outputs = zeros(size(C, 1), length(t)); % Armazena as saídas
 y_fs_outputs = zeros(size(C, 1), length(t)); % Armazena as saídas
 
@@ -134,7 +134,7 @@ for k = 1:length(t)-1
     y_p_d = C_p * x_states(1:n_p, k);
     y_p_s = C_p * x_states(1:n_p, k);
 
-    y_c = C_c * x_states(1:n_c, k);
+    y_c = C_c * x_states(n_p+1:n_p+n_c, k);
     y_f_d = C * x_states(:, k);
 
     y_f_s = Mps_inv * y_c;
@@ -145,14 +145,15 @@ for k = 1:length(t)-1
    
     dx = (A + L_f * K_f * C_) * x_states(:, k) + (B + L * E) * phi(y_f_d)+ Bw_ * w(k);
     x_states(:, k + 1) = x_states(:, k) + dx * dt;
-    
+       
 
     y_pd_outputs(:, k) = y_p_d;
     y_ps_outputs(:, k) = y_p_s;
 
     y_c_outputs(:, k) = y_c;
-    y_fd_outputs(:, k) = y_f_d;
-    y_fs_outputs(:, k) = y_f_s;
+    y_fd_outputs(:, k) = sat(y_f_d);
+    y_fs_outputs(:, k) = sat(y_f_s);
+    
     
 end
 
